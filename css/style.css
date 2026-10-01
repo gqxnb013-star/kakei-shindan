@@ -504,3 +504,12 @@ input:focus { outline: 2px solid var(--primary-light); outline-offset: 1px; bord
 
   .footnote { font-size: 8pt; }
 }
+
+/* ---------- LINEの中のブラウザ向けの案内 ---------- */
+
+.line-notice { background: #fff4e0; border-bottom: 1px solid #f1d9b0; padding: 12px 0; font-size: 13.5px; }
+.line-notice p { margin: 0 0 8px; line-height: 1.7; }
+
+@media print {
+  .line-notice { display: none !important; }
+}

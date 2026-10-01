@@ -121,7 +121,21 @@ function bindEvents() {
   $('#btn-export').addEventListener('click', exportBackup);
   $('#import-file').addEventListener('change', importBackup);
 
-  $('#btn-print').addEventListener('click', () => window.print());
+  $('#btn-print').addEventListener('click', () => {
+    // LINEの中のブラウザでは印刷（PDF保存）が選べないため、外部ブラウザで開き直してもらう
+    if (isLineBrowser()) location.href = externalUrl();
+    else window.print();
+  });
+
+  if (isLineBrowser()) {
+    $('#line-notice').hidden = false;
+    $('#btn-open-external').addEventListener('click', (e) => {
+      e.preventDefault();
+      location.href = externalUrl(); // 押した時点の画面（# の部分）を引き継ぐ
+    });
+    $('#btn-print').textContent = 'Safari・Chromeで開いてPDF保存';
+    $('#print-help').textContent = 'LINEの中ではPDF保存ができません。Safari・Chromeで開くと保存できますが、入力した内容はブラウザごとに別々のため、開いた先では入力し直しが必要です（ホームのバックアップで移すこともできます）。';
+  }
 
   // 印刷の直前に推移のグラフを描き直す（紙の幅に合わせる）
   window.addEventListener('beforeprint', () => {
@@ -512,6 +526,18 @@ async function importBackup(e) {
   } catch (err) {
     showToast(err.message || '読み込みに失敗しました。', 6000);
   }
+}
+
+/* ---------- LINEの中のブラウザ ---------- */
+
+/** LINEアプリの中のブラウザで開かれているか（LINEは利用者の端末情報に「Line/」を含める） */
+function isLineBrowser() {
+  return /\bLine\//i.test(navigator.userAgent);
+}
+
+/** LINEで開いたときに外部ブラウザで開き直すためのURL（LINEの openExternalBrowser 指定を付ける） */
+function externalUrl() {
+  return `${location.origin}${location.pathname}?openExternalBrowser=1${location.hash}`;
 }
 
 /* ---------- 共通 ---------- */

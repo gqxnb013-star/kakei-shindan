@@ -15,6 +15,14 @@
     </div>
   </header>
 
+  <!-- LINEの中のブラウザで開いたときだけ出す案内 -->
+  <div class="line-notice" id="line-notice" hidden>
+    <div class="wrap">
+      <p><strong>LINEの中で開いています。</strong>LINEの中ではレポートのPDF保存ができません。また、入力した内容はブラウザごとに別々に保存されるため、<strong>最初から Safari や Chrome で開いて使う</strong>のがおすすめです。</p>
+      <a class="btn btn-primary btn-sm" id="btn-open-external" href="#">Safari・Chromeで開く</a>
+    </div>
+  </div>
+
   <main>
     <!-- ①はじめに -->
     <section id="view-intro" class="view" hidden>
@@ -140,7 +148,7 @@
           <button type="button" class="btn btn-ghost" data-go="home">ホームへ</button>
           <button type="button" class="btn btn-primary" id="btn-print">PDFで保存（印刷）</button>
         </div>
-        <p class="note screen-only">「PDFで保存」を押すと印刷の画面が開きます。送信先・プリンターで「PDFに保存」を選んでください。</p>
+        <p class="note screen-only" id="print-help">「PDFで保存」を押すと印刷の画面が開きます。送信先・プリンターで「PDFに保存」を選んでください。</p>
         <div id="report-body"></div>
       </div>
     </section>
