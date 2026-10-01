@@ -513,3 +513,7 @@ input:focus { outline: 2px solid var(--primary-light); outline-offset: 1px; bord
 @media print {
   .line-notice { display: none !important; }
 }
+
+/* ロゴ：D-AI-FP の後ろに「家計診断」を小さく添える */
+.logo { display: inline-flex; align-items: baseline; gap: 8px; }
+.logo-text { font-size: 14px; font-weight: 600; letter-spacing: 0.12em; color: var(--ink-soft); }
