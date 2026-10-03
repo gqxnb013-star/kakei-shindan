@@ -573,3 +573,14 @@ input:focus { outline: 2px solid var(--primary-light); outline-offset: 1px; bord
 .spinner { width: 40px; height: 40px; margin: 0 auto; border: 4px solid var(--line); border-top-color: var(--primary); border-radius: 50%; animation: kk-spin 0.9s linear infinite; }
 @keyframes kk-spin { to { transform: rotate(360deg); } }
 .scan-error { margin: 14px 0 0; padding: 10px 12px; border-radius: 8px; background: #fdecea; color: var(--warn); font-size: 14px; line-height: 1.6; }
+
+/* ---------- ⑧FPに送る ---------- */
+.menu-btn-wide { grid-column: 1 / -1; }
+.send-entry { margin: 8px 0 24px; }
+.send-table { width: 100%; border-collapse: collapse; font-size: 14.5px; margin: 4px 0 8px; }
+.send-table th, .send-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; font-weight: 400; }
+.send-table td.num { text-align: right; font-family: var(--font-num); white-space: nowrap; }
+.send-table tr.is-total th, .send-table tr.is-total td { font-weight: 700; }
+.send-table tr.is-sub th { padding-left: 20px; color: var(--ink-soft); }
+.send-log { margin-top: 16px; font-size: 13.5px; color: var(--ink-soft); }
+.send-log ul { margin: 4px 0 0; padding-left: 1.2em; }

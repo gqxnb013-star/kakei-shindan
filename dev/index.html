@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <title>D-AI-FP（家計診断）</title>
-  <link rel="stylesheet" href="css/style.css?v=20261003f">
+  <link rel="stylesheet" href="css/style.css?v=20261003g">
 </head>
 <body>
   <header class="site-header">
@@ -34,11 +34,13 @@
             <li><strong>月を選ぶ</strong>　ホームで記録する月を選びます</li>
             <li><strong>収入と支出を入れる</strong>　支出はカテゴリごとの月額でも、1件ずつでも入れられます</li>
             <li><strong>見える化・レポート</strong>　グラフで確認し、A4のレポートをPDFで保存できます</li>
+            <li><strong>FPに送る（任意）</strong>　相談したいときは、月の集計を担当のFPに送れます</li>
           </ol>
 
           <h3 class="sub-head">入力したデータの扱い</h3>
           <ul class="plain-list">
             <li>入力した内容は<strong>この端末のブラウザの中だけ</strong>に保存されます。FPを含め、外部には送られません。</li>
+            <li>ただし、ご自身で「FPに送る」を選んだときだけ、その月の集計（合計の数字）をFPに送ります。明細1件ずつの中身は送りません。</li>
             <li>機種変更やブラウザのデータ削除で消えてしまうため、ホームの「バックアップ」からファイルに書き出しておくことをおすすめします。</li>
             <li>この家計簿は家計を整理するための一般的な情報提供です。特定の金融商品・保険商品の推奨や勧誘ではありません。</li>
             <li>この家計簿は<strong>家計の傾向をつかむための目安</strong>です。確定申告や帳簿づけなど、1円単位の正確さが必要な用途には使えません。</li>
@@ -73,6 +75,7 @@
           <button type="button" class="menu-btn" data-go="expense"><span class="menu-no">2</span>支出を入れる</button>
           <button type="button" class="menu-btn" data-go="charts"><span class="menu-no">3</span>グラフで見る</button>
           <button type="button" class="menu-btn" data-go="report"><span class="menu-no">4</span>レポートを作る</button>
+          <button type="button" class="menu-btn menu-btn-wide" data-go="send"><span class="menu-no">5</span>FPに送る（任意）</button>
         </div>
 
         <div class="card">
@@ -230,6 +233,71 @@
         </div>
         <p class="note screen-only" id="print-help">「PDFで保存」を押すと印刷の画面が開きます。送信先・プリンターで「PDFに保存」を選んでください。</p>
         <div id="report-body"></div>
+        <div class="center screen-only send-entry">
+          <button type="button" class="btn btn-ghost" data-go="send">この月の集計をFPに送る（任意）</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑧FPに送る（任意） -->
+    <section id="view-send" class="view" hidden>
+      <div class="wrap">
+        <div class="month-nav">
+          <button type="button" class="month-btn" data-shift="-1" aria-label="前の月">‹</button>
+          <p class="month-label" data-month-label></p>
+          <button type="button" class="month-btn" data-shift="1" aria-label="次の月">›</button>
+        </div>
+        <div class="card">
+          <h2>FPに送る</h2>
+
+          <!-- 確認と入力 -->
+          <div id="send-form">
+            <p class="note">この月の集計を、担当のFP（宮崎大輔）に送ります。送るかどうかは、ご自身で決めてください。</p>
+            <div id="send-preview"></div>
+            <h3 class="sub-head">送る前にご確認ください</h3>
+            <ul class="plain-list">
+              <li>送るのは<strong>上の表の数字（この月の集計）だけ</strong>です。明細1件ずつの日付・店名・金額は送りません。</li>
+              <li>あわせて、下に入れた<strong>お名前</strong>と<strong>LINEの表示名</strong>がFPに届きます。</li>
+              <li>送った内容は、FPだけが見られる表（Googleスプレッドシート）に保存されます。消してほしいときは、LINEでお知らせください。</li>
+              <li>本人確認のため、LINEでのログインが必要です。送れるのは<strong>1日10回まで</strong>です。</li>
+              <li>FPからのご連絡は、LINE公式アカウント「DAIFP 宮崎大輔」から届きます。</li>
+            </ul>
+            <div class="field">
+              <label for="send-name">お名前</label>
+              <input type="text" id="send-name" maxlength="40" autocomplete="name" placeholder="例：山田 花子">
+            </div>
+            <label class="agree">
+              <input type="checkbox" id="send-agree">
+              <span>上の内容に同意して送ります</span>
+            </label>
+            <p class="footnote" id="send-ready" hidden>LINEの本人確認ができました。内容を確かめて「送る」を押してください。</p>
+            <div class="center">
+              <button type="button" class="btn btn-primary btn-lg" id="btn-send" disabled>LINEで本人確認して送る</button>
+            </div>
+          </div>
+
+          <!-- 送信中 -->
+          <div id="send-busy" class="scan-busy" hidden>
+            <div class="spinner" aria-hidden="true"></div>
+            <p>送信中です…（画面を閉じずにお待ちください）</p>
+          </div>
+
+          <!-- 送ったあと -->
+          <div id="send-done" hidden>
+            <p class="lead">送りました。</p>
+            <p>受付番号：<strong id="send-no"></strong></p>
+            <p class="note">FPが内容を確認して、LINE公式アカウント「DAIFP 宮崎大輔」からご連絡します。</p>
+            <p class="note note-alert" id="send-friend" hidden>「DAIFP 宮崎大輔」がまだ友だちに入っていないようです。ご連絡を受け取るため、<a href="https://line.me/R/ti/p/@936gkqct" target="_blank" rel="noopener">こちらから友だちに追加</a>してください。</p>
+          </div>
+
+          <p class="scan-error" id="send-error" role="alert" hidden></p>
+          <div id="send-log"></div>
+
+          <div class="step-nav">
+            <button type="button" class="btn btn-ghost" data-go="home">ホームへ</button>
+            <button type="button" class="btn btn-ghost" data-go="report">レポートに戻る</button>
+          </div>
+        </div>
       </div>
     </section>
   </main>
@@ -237,7 +305,7 @@
   <footer class="site-footer">
     <div class="wrap">
       <ul class="disclaimer">
-        <li>入力した内容はこの端末のブラウザの中だけに保存され、外部には送信されません。</li>
+        <li>入力した内容はこの端末のブラウザの中だけに保存されます。外部に送るのは、スクショ読み取りの画像と、ご自身で「FPに送る」を選んだときの月の集計だけです。</li>
         <li>集計とコメントは入力された金額にもとづく一般的な情報提供です。特定の金融商品・保険商品の推奨や投資助言ではありません。</li>
       </ul>
       <p class="footer-links"><a href="#" data-go="intro">使い方・データの扱い</a></p>
@@ -246,12 +314,13 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="js/calc.js?v=20261003f"></script>
-  <script src="js/dict.js?v=20261003f"></script>
-  <script src="js/chart.js?v=20261003f"></script>
-  <script src="js/store.js?v=20261003f"></script>
-  <script src="js/line.js?v=20261003f"></script>
-  <script src="js/import.js?v=20261003f"></script>
-  <script src="js/app.js?v=20261003f"></script>
+  <script src="js/calc.js?v=20261003g"></script>
+  <script src="js/dict.js?v=20261003g"></script>
+  <script src="js/chart.js?v=20261003g"></script>
+  <script src="js/store.js?v=20261003g"></script>
+  <script src="js/line.js?v=20261003g"></script>
+  <script src="js/import.js?v=20261003g"></script>
+  <script src="js/send.js?v=20261003g"></script>
+  <script src="js/app.js?v=20261003g"></script>
 </body>
 </html>

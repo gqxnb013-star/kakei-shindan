@@ -97,5 +97,5 @@ const ScanImport = (() => {
     return { rows: json.rows || [], income: json.income || 0, remaining: json.remaining };
   }
 
-  return { MAX_PER_REQUEST, quota, read };
+  return { GAS_URL, MAX_PER_REQUEST, quota, read };
 })();

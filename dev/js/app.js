@@ -8,9 +8,11 @@
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
-const VIEWS = ['intro', 'home', 'income', 'expense', 'scan', 'review', 'charts', 'report'];
+const VIEWS = ['intro', 'home', 'income', 'expense', 'scan', 'review', 'charts', 'report', 'send'];
 const SCAN_RESUME_KEY = 'kk-scan-resume'; // LINEログインから戻ったら読み取りの続きを出す印（sessionStorage）
 const SCAN_RESUME_MS = 10 * 60 * 1000;
+const SEND_RESUME_KEY = 'kk-send-resume'; // LINEログインから戻ったら「FPに送る」に戻す印（sessionStorage。中身は対象の月だけ）
+const SEND_LOG_MAX = 20;
 const BACKUP_REMIND_DAYS = 30;
 
 const state = {
@@ -20,6 +22,8 @@ const state = {
   review: null, // ⑤で確認中の明細（端末には保存しない。画面を閉じると消える）
   scan: null, // 読み取り中の情報 { idToken, remaining }（端末には保存しない）
   scanResume: false, // LINEログインから戻ってきた直後か
+  send: null, // FPに送る途中の情報 { sid, idToken, friend }（端末には保存しない）
+  sendResume: false, // 送る前のLINEログインから戻ってきた直後か
 };
 
 let saveTimer = null;
@@ -33,6 +37,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadMonth(state.month);
   bindEvents();
   resumeScanAfterLogin();
+  await resumeSendAfterLogin();
   route();
   // LINEの中で開いたとき・LINEログインから戻ったときだけ LIFF を準備する（js/line.js）
   if (LineAuth.shouldInitOnLoad()) LineAuth.init();
@@ -53,7 +58,7 @@ async function route() {
   await flushSave();
   VIEWS.forEach((v) => ($('#view-' + v).hidden = v !== view));
   window.scrollTo(0, 0);
-  const render = { intro: renderIntro, home: renderHome, income: renderIncome, expense: renderExpense, scan: renderScan, review: renderReview, charts: renderCharts, report: renderReport }[view];
+  const render = { intro: renderIntro, home: renderHome, income: renderIncome, expense: renderExpense, scan: renderScan, review: renderReview, charts: renderCharts, report: renderReport, send: renderSend }[view];
   await render();
 }
 
@@ -153,6 +158,10 @@ function bindEvents() {
   $('#btn-scan-consent').addEventListener('click', scanSignIn);
   $('#scan-files').addEventListener('change', updateScanPicked);
   $('#btn-scan-run').addEventListener('click', runScan);
+
+  $('#send-name').addEventListener('input', updateSendButton);
+  $('#send-agree').addEventListener('change', updateSendButton);
+  $('#btn-send').addEventListener('click', sendToFp);
 
   $('#btn-export').addEventListener('click', exportBackup);
   $('#import-file').addEventListener('change', importBackup);
@@ -875,6 +884,150 @@ async function renderReport() {
       <p class="footnote report-foot">このレポートはご本人が入力した金額をもとに、決まった計算方法で集計したものです。一般的な情報提供であり、特定の金融商品・保険商品の推奨や投資助言ではありません。</p>
     </div>`;
   drawTrendIn('#report-trend', trend, average);
+}
+
+/* ---------- ⑧FPに送る ---------- */
+
+function showSendStep(step) {
+  $('#send-form').hidden = step !== 'form';
+  $('#send-busy').hidden = step !== 'busy';
+  $('#send-done').hidden = step !== 'done';
+}
+
+function showSendError(msg) {
+  $('#send-error').textContent = msg || '';
+  $('#send-error').hidden = !msg;
+}
+
+async function renderSend() {
+  $$('[data-month-label]').forEach((el) => (el.textContent = monthLabel(state.month)));
+  showSendError('');
+  const resumed = state.sendResume;
+  state.sendResume = false;
+  // 月を変えた・画面を開き直したときは、送信IDを作り直す（中身が変わっているかもしれないため）
+  if (!resumed) state.send = null;
+  const { summary } = await analyze();
+  const empty = !summary.hasIncome && !summary.hasExpense;
+  $('#send-preview').innerHTML = empty
+    ? `<p class="empty">${monthLabel(state.month)}はまだ入力がありません。ホームで月を選び直すか、収入・支出を入れてください。</p>`
+    : sendPreviewTable(summary);
+  $('#send-name').value = state.settings.sendName || '';
+  $('#send-agree').checked = resumed;
+  $('#send-ready').hidden = !resumed;
+  $('#btn-send').textContent = resumed ? '送る' : 'LINEで本人確認して送る';
+  $('#btn-send').dataset.empty = empty ? '1' : '';
+  showSendStep('form');
+  updateSendButton();
+  renderSendLog();
+  if (resumed) {
+    // 戻ってきた直後にもう一度本人確認をしておく（ログイン済みなので画面は移らない）
+    try {
+      const r = await LineAuth.signIn();
+      if (r) state.send = { sid: FpSend.newSendId(), idToken: r.idToken, friend: r.friend };
+    } catch (err) {
+      showSendError(err.message + sendDebugText(err));
+    }
+  }
+}
+
+/** 送る数字の一覧（確認用。送る中身と同じもの） */
+function sendPreviewTable(s) {
+  const row = (label, v, cls = '') => `<tr class="${cls}"><th>${label}</th><td class="num">${yen(v)}</td></tr>`;
+  const cats = s.categories.filter((c) => c.total > 0).map((c) => row(c.label, c.total, 'is-sub')).join('');
+  return `
+    <table class="send-table">
+      <tbody>
+        ${row('収入の合計', s.incomeTotal, 'is-total')}
+        ${row('支出の合計', s.expenseTotal, 'is-total')}
+        ${cats}
+        ${row('固定費', s.fixedTotal)}
+        ${row('変動費', s.variableTotal)}
+        ${row('投資・積立', s.investTotal)}
+        ${row('残るお金', s.balance, 'is-total')}
+      </tbody>
+    </table>`;
+}
+
+function updateSendButton() {
+  const name = $('#send-name').value.trim();
+  $('#btn-send').disabled = !name || name.length > 40 || !$('#send-agree').checked || $('#btn-send').dataset.empty === '1';
+}
+
+/** これまでに送った記録（この端末に残す。送った月・日時・受付番号だけ） */
+function renderSendLog() {
+  const log = state.settings.sentLog || [];
+  $('#send-log').innerHTML = log.length
+    ? `<div class="send-log">これまでに送った記録（新しい順）<ul>${log
+        .slice(0, 5)
+        .map((l) => `<li>${new Date(l.at).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}　${monthLabel(l.month)}（${esc(l.no)}）</li>`)
+        .join('')}</ul></div>`
+    : '';
+}
+
+async function sendToFp() {
+  // LINEの中では送らない（データがブラウザごとに別のため、家計簿は Safari・Chrome で使う。SPEC 6-5）
+  if (LineAuth.isLineBrowser()) {
+    if (confirm('FPに送る機能は Safari・Chrome で使えます。開き直しますか？\n（入力した内容はブラウザごとに別々に保存されます）')) LineAuth.openExternal(externalUrl());
+    return;
+  }
+  showSendError('');
+  const name = $('#send-name').value.trim();
+  if (!name || name.length > 40) return;
+  state.settings.sendName = name;
+  await Store.setSettings(state.settings);
+  const btn = $('#btn-send');
+  btn.disabled = true;
+  try {
+    if (!state.send) {
+      try {
+        sessionStorage.setItem(SEND_RESUME_KEY, JSON.stringify({ at: Date.now(), month: state.month }));
+      } catch (e) {}
+      const r = await LineAuth.signIn();
+      if (!r) return; // LINEログインの画面へ移った
+      try {
+        sessionStorage.removeItem(SEND_RESUME_KEY);
+      } catch (e) {}
+      state.send = { sid: FpSend.newSendId(), idToken: r.idToken, friend: r.friend };
+    }
+    showSendStep('busy');
+    const { summary } = await analyze();
+    const res = await FpSend.send(state.send.idToken, state.send.sid, FpSend.buildPayload(summary, state.month, name));
+    state.settings.sentLog = [{ month: state.month, at: new Date().toISOString(), no: res.no }].concat(state.settings.sentLog || []).slice(0, SEND_LOG_MAX);
+    await Store.setSettings(state.settings);
+    $('#send-no').textContent = res.no;
+    $('#send-friend').hidden = state.send.friend !== false;
+    state.send = null;
+    showSendStep('done');
+    renderSendLog();
+  } catch (err) {
+    try {
+      sessionStorage.removeItem(SEND_RESUME_KEY);
+    } catch (e) {}
+    // 本人確認の期限切れなら、次に押したときにログインし直す（送信IDは作り直してよい：まだ届いていないため）
+    if (err.code === 'token') state.send = null;
+    showSendStep('form');
+    showSendError((err.message || '送れませんでした。もう一度お試しください。') + sendDebugText(err));
+    updateSendButton();
+  }
+}
+
+function sendDebugText(err) {
+  if (!(location.pathname.includes('/dev/') || ['localhost', '127.0.0.1'].includes(location.hostname))) return '';
+  return `［試験用：${err.code || '-'}／${err.detail || '-'}］`;
+}
+
+/** 起動時：送る前のLINEログインから戻ってきたなら、その月の「FPに送る」を出す */
+async function resumeSendAfterLogin() {
+  try {
+    const raw = sessionStorage.getItem(SEND_RESUME_KEY);
+    if (!raw) return;
+    sessionStorage.removeItem(SEND_RESUME_KEY);
+    const r = JSON.parse(raw);
+    if (!r.at || Date.now() - r.at > SCAN_RESUME_MS || !/^\d{4}-\d{2}$/.test(r.month)) return;
+    if (r.month !== state.month) await loadMonth(r.month);
+    state.sendResume = true;
+    history.replaceState(null, '', location.pathname + location.search + '#send');
+  } catch (e) {}
 }
 
 /* ---------- バックアップ ---------- */
