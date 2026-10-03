@@ -106,5 +106,15 @@ const LineAuth = (() => {
     return { idToken, friend };
   }
 
-  return { isLineBrowser, shouldInitOnLoad, init, isInClient, openExternal, signIn };
+  /** 試験用：手元の id_token の期限（時:分）。読めなければ空 */
+  function idTokenExpText() {
+    try {
+      const d = new Date(liff.getDecodedIDToken().exp * 1000);
+      return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+    } catch (e) {
+      return '';
+    }
+  }
+
+  return { isLineBrowser, shouldInitOnLoad, init, isInClient, openExternal, signIn, idTokenExpText };
 })();

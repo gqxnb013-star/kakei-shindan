@@ -465,8 +465,14 @@ async function scanSignIn() {
     showScanStep('consent');
     $('#scan-agree').checked = true;
     btn.disabled = false;
-    showScanError(err.message || '本人確認ができませんでした。もう一度お試しください。');
+    showScanError((err.message || '本人確認ができませんでした。もう一度お試しください。') + scanDebugText(err));
   }
+}
+
+/** 試験用の写し（/dev/）・プレビューのときだけ、原因の切り分けのための情報を添える（IDやトークンは出さない） */
+function scanDebugText(err) {
+  if (!(location.pathname.includes('/dev/') || ['localhost', '127.0.0.1'].includes(location.hostname))) return '';
+  return `［試験用 v2：${err.code || '-'}／${err.detail || '-'}／期限 ${LineAuth.idTokenExpText() || '-'}］`;
 }
 
 /** 起動時：LINEログインから戻ってきたなら、読み取りの画面（画像を選ぶ段）を出す */
@@ -531,7 +537,7 @@ async function runScan() {
       }
     }
     const msg = err.code === 'limit' && err.remaining > 0 ? `今月はあと${err.remaining}枚までです。枚数を減らして選び直してください。` : err.message;
-    showScanError(msg || '読み取りできませんでした。もう一度お試しください。');
+    showScanError((msg || '読み取りできませんでした。もう一度お試しください。') + scanDebugText(err));
   }
 }
 

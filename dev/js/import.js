@@ -41,6 +41,7 @@ const ScanImport = (() => {
       const err = new Error(MESSAGES[json.error] || '読み取りできませんでした。もう一度お試しください（今回の分は枚数に数えていません）。');
       err.code = json.error;
       err.remaining = json.remaining;
+      err.detail = json.detail;
       throw err;
     }
     return json;
