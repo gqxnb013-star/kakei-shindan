@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>D-AI-FP（家計診断）</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="logo" href="#" data-go="home"><span class="logo-mark">D-AI-FP</span><span class="logo-text">家計診断</span></a>
+      <p class="tagline">自分の家計簿で、収支を見える化</p>
+    </div>
+  </header>
+
+  <!-- LINEの中のブラウザで開いたときだけ出す案内 -->
+  <div class="line-notice" id="line-notice" hidden>
+    <div class="wrap">
+      <p><strong>LINEの中で開いています。</strong>LINEの中ではレポートのPDF保存ができません。また、入力した内容はブラウザごとに別々に保存されるため、<strong>最初から Safari や Chrome で開いて使う</strong>のがおすすめです。</p>
+      <a class="btn btn-primary btn-sm" id="btn-open-external" href="#">Safari・Chromeで開く</a>
+    </div>
+  </div>
+
+  <main>
+    <!-- ①はじめに -->
+    <section id="view-intro" class="view" hidden>
+      <div class="wrap">
+        <div class="card">
+          <h2>はじめに</h2>
+          <p class="lead">月ごとの収入と支出を入れると、残るお金・支出の内訳・月ごとの推移がひと目で分かります。</p>
+          <ol class="howto">
+            <li><strong>月を選ぶ</strong>　ホームで記録する月を選びます</li>
+            <li><strong>収入と支出を入れる</strong>　支出はカテゴリごとの月額でも、1件ずつでも入れられます</li>
+            <li><strong>見える化・レポート</strong>　グラフで確認し、A4のレポートをPDFで保存できます</li>
+          </ol>
+
+          <h3 class="sub-head">入力したデータの扱い</h3>
+          <ul class="plain-list">
+            <li>入力した内容は<strong>この端末のブラウザの中だけ</strong>に保存されます。FPを含め、外部には送られません。</li>
+            <li>機種変更やブラウザのデータ削除で消えてしまうため、ホームの「バックアップ」からファイルに書き出しておくことをおすすめします。</li>
+            <li>この家計簿は家計を整理するための一般的な情報提供です。特定の金融商品・保険商品の推奨や勧誘ではありません。</li>
+          </ul>
+
+          <label class="agree">
+            <input type="checkbox" id="agree-check">
+            <span>上の内容を確認しました</span>
+          </label>
+          <div class="center">
+            <button type="button" class="btn btn-primary btn-lg" id="btn-start" disabled>はじめる</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ②ホーム -->
+    <section id="view-home" class="view" hidden>
+      <div class="wrap">
+        <div class="month-nav">
+          <button type="button" class="month-btn" id="month-prev" aria-label="前の月">‹</button>
+          <p class="month-label" id="month-label"></p>
+          <button type="button" class="month-btn" id="month-next" aria-label="次の月">›</button>
+        </div>
+
+        <div class="card summary-card">
+          <div class="summary-grid" id="home-summary"></div>
+        </div>
+
+        <div class="menu-grid">
+          <button type="button" class="menu-btn" data-go="income"><span class="menu-no">1</span>収入を入れる</button>
+          <button type="button" class="menu-btn" data-go="expense"><span class="menu-no">2</span>支出を入れる</button>
+          <button type="button" class="menu-btn" data-go="charts"><span class="menu-no">3</span>グラフで見る</button>
+          <button type="button" class="menu-btn" data-go="report"><span class="menu-no">4</span>レポートを作る</button>
+        </div>
+
+        <div class="card">
+          <h2>バックアップ</h2>
+          <div id="backup-alert"></div>
+          <p class="footnote" id="backup-last"></p>
+          <div class="backup-actions">
+            <button type="button" class="btn btn-ghost" id="btn-export">ファイルに書き出す</button>
+            <label class="btn btn-ghost file-btn">ファイルから読み込む<input type="file" id="import-file"></label>
+          </div>
+          <p class="footnote">書き出したファイルは、この画面の「ファイルから読み込む」で元に戻すための専用の形式です。ドライブなどで開くと「サポートされていないファイル」と表示されますが、正しく保存できています。</p>
+          <p class="footnote">書き出したファイルには家計簿の中身が入っています。他の人に送ったり、共有の場所に置いたりしないでください。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ③収入 -->
+    <section id="view-income" class="view" hidden>
+      <div class="wrap">
+        <div class="card">
+          <h2><span id="income-month"></span>の収入</h2>
+          <p class="note">手取りの金額（税金・社会保険料が引かれたあとの金額）を、月額で入れてください。</p>
+          <div id="income-fields"></div>
+          <div class="field-total">収入の合計 <strong id="income-total">0円</strong></div>
+          <div class="sub-actions">
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-copy-income">先月と同じ内容を入れる</button>
+          </div>
+          <div class="step-nav">
+            <button type="button" class="btn btn-ghost" data-go="home">ホームへ</button>
+            <button type="button" class="btn btn-primary" data-go="expense">支出を入れる</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ④支出 -->
+    <section id="view-expense" class="view" hidden>
+      <div class="wrap">
+        <div class="card">
+          <h2><span id="expense-month"></span>の支出</h2>
+          <p class="note">カテゴリごとに月額で入れるか、「1件ずつ」を開いて明細を足していきます。<br>カテゴリの合計＝<strong>月額（明細以外の分）＋明細の合計</strong>です。同じ支出を両方に入れないようにご注意ください。</p>
+          <div id="expense-list"></div>
+          <div class="field-total">支出の合計 <strong id="expense-total">0円</strong></div>
+          <div class="sub-actions">
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-copy-fixed">先月の固定費をコピー</button>
+            <!-- 開発用：プレビュー（localhost）でだけ出す。スクショ読み取りができるまでの確認用 -->
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-dev-review" hidden>架空の明細で⑤を確認（開発用）</button>
+            <!-- 開発用：LINEの本人確認の動作確認（プレビューか ?linetest=1 のときだけ出す） -->
+            <div id="line-test" hidden>
+              <button type="button" class="btn btn-ghost btn-sm" id="btn-line-test">LINEの本人確認を試す（開発用）</button>
+              <p class="note" id="line-test-result"></p>
+            </div>
+          </div>
+          <div class="step-nav">
+            <button type="button" class="btn btn-ghost" data-go="home">ホームへ</button>
+            <button type="button" class="btn btn-primary" data-go="charts">グラフで見る</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑤仕分けの確認（並びは SPEC 6-6：未分類 → 二重の可能性 → 自動で仕分け済み） -->
+    <section id="view-review" class="view" hidden>
+      <div class="wrap">
+        <div class="card">
+          <h2>仕分けの確認</h2>
+          <p class="note">読み取った明細の分類を確認してください。日付・店名・金額が違っていたら直せます。取り込むと、明細の日付の月に入ります。</p>
+          <div id="review-body"></div>
+          <label class="agree review-learn">
+            <input type="checkbox" id="review-learn" checked>
+            <span>選んだ分類を次回から自動に</span>
+          </label>
+          <p class="footnote review-status" id="review-status"></p>
+          <div class="step-nav">
+            <button type="button" class="btn btn-ghost" id="btn-review-cancel">取り込まずに戻る</button>
+            <button type="button" class="btn btn-primary" id="btn-review-commit">この内容で取り込む</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑥見える化 -->
+    <section id="view-charts" class="view" hidden>
+      <div class="wrap">
+        <div class="month-nav">
+          <button type="button" class="month-btn" data-shift="-1" aria-label="前の月">‹</button>
+          <p class="month-label" data-month-label></p>
+          <button type="button" class="month-btn" data-shift="1" aria-label="次の月">›</button>
+        </div>
+        <div id="charts-body"></div>
+        <div class="step-nav">
+          <button type="button" class="btn btn-ghost" data-go="home">ホームへ</button>
+          <button type="button" class="btn btn-primary" data-go="report">レポートを作る</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑦レポート -->
+    <section id="view-report" class="view" hidden>
+      <div class="wrap">
+        <div class="report-actions">
+          <button type="button" class="btn btn-ghost" data-go="home">ホームへ</button>
+          <button type="button" class="btn btn-primary" id="btn-print">PDFで保存（印刷）</button>
+        </div>
+        <p class="note screen-only" id="print-help">「PDFで保存」を押すと印刷の画面が開きます。送信先・プリンターで「PDFに保存」を選んでください。</p>
+        <div id="report-body"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <ul class="disclaimer">
+        <li>入力した内容はこの端末のブラウザの中だけに保存され、外部には送信されません。</li>
+        <li>集計とコメントは入力された金額にもとづく一般的な情報提供です。特定の金融商品・保険商品の推奨や投資助言ではありません。</li>
+      </ul>
+      <p class="footer-links"><a href="#" data-go="intro">使い方・データの扱い</a></p>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/calc.js"></script>
+  <script src="js/dict.js"></script>
+  <script src="js/chart.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/line.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
