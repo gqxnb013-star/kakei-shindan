@@ -28,12 +28,16 @@ const EXPENSE_CATEGORIES = [
   { key: 'education', label: '教育', note: '学費・塾・習い事・保育料', fixed: true, daifp: '教育費' },
   { key: 'car', label: '車・交通', fixed: false, daifp: 'その他' },
   { key: 'food', label: '食費', fixed: false, daifp: '生活費' },
+  { key: 'convenience', label: 'コンビニ', fixed: false, daifp: '生活費' },
   { key: 'daily', label: '日用品', fixed: false, daifp: '生活費' },
   { key: 'medical', label: '医療', fixed: false, daifp: 'その他' },
   { key: 'leisure', label: '娯楽・交際', fixed: false, daifp: 'その他' },
   { key: 'clothing', label: '被服・美容', fixed: false, daifp: 'その他' },
+  { key: 'online', label: 'ネットショップ', note: 'Amazon・楽天市場など', fixed: false, daifp: 'その他' },
   { key: 'subscription', label: 'サブスク', fixed: true, daifp: 'その他' },
   { key: 'misc', label: 'その他', fixed: false, daifp: 'その他' },
+  // 投資・積立は「使ったお金」ではないため、支出の合計・割合には入れず別枠で数える（2026-10-03 本人と合意）
+  { key: 'invest', label: '投資・積立', note: '積立投資・iDeCo・積立預金など（支出の合計には入れません）', fixed: true, daifp: null, saving: true },
 ];
 
 const DAIFP_GROUPS = ['住居費', '生活費', '保険料', '教育費', 'その他'];
@@ -45,6 +49,16 @@ function emptyMonth(month) {
   const expense = {};
   EXPENSE_CATEGORIES.forEach((c) => (expense[c.key] = { amount: 0, items: [] }));
   return { month, income, expense, updatedAt: null };
+}
+
+/** 保存済みの月に、あとから増えた分類の欄を足す（古いデータでも同じ形で扱えるように） */
+function fillMonth(data) {
+  if (!data) return data;
+  data.expense = data.expense || {};
+  EXPENSE_CATEGORIES.forEach((c) => {
+    if (!data.expense[c.key]) data.expense[c.key] = { amount: 0, items: [] };
+  });
+  return data;
 }
 
 /** 入力値を0以上の整数（円）にそろえる。数字でないものは0 */
@@ -76,10 +90,12 @@ function summarizeMonth(data, fixedMap) {
   const d = data || emptyMonth('');
   const incomeTotal = INCOME_ITEMS.reduce((s, i) => s + toYen(d.income && d.income[i.key]), 0);
 
-  const categories = EXPENSE_CATEGORIES.map((c) => {
+  const categories = EXPENSE_CATEGORIES.filter((c) => !c.saving).map((c) => {
     const total = categoryTotal(d.expense && d.expense[c.key]);
     return { key: c.key, label: c.label, total, fixed: isFixed(c.key, fixedMap), daifp: c.daifp };
   });
+  // 投資・積立（支出とは別枠）
+  const investTotal = EXPENSE_CATEGORIES.filter((c) => c.saving).reduce((s, c) => s + categoryTotal(d.expense && d.expense[c.key]), 0);
   const expenseTotal = categories.reduce((s, c) => s + c.total, 0);
   categories.forEach((c) => (c.ratio = expenseTotal > 0 ? c.total / expenseTotal : 0));
 
@@ -91,14 +107,16 @@ function summarizeMonth(data, fixedMap) {
     month: d.month,
     incomeTotal,
     expenseTotal,
-    balance: incomeTotal - expenseTotal,
+    investTotal,
+    // 残るお金＝収入−支出−投資・積立
+    balance: incomeTotal - expenseTotal - investTotal,
     categories,
     fixedTotal,
     variableTotal,
     fixedRatio: expenseTotal > 0 ? fixedTotal / expenseTotal : 0,
     insuranceRatio: expenseTotal > 0 ? insurance / expenseTotal : 0,
     hasIncome: incomeTotal > 0,
-    hasExpense: expenseTotal > 0,
+    hasExpense: expenseTotal > 0 || investTotal > 0,
   };
 }
 
@@ -150,6 +168,14 @@ function buildComments(summary, average) {
     out.push(`この月は支出が収入を${yen(-summary.balance)}上回っています。賞与や貯蓄から補った月かどうか、内訳とあわせて確認しておきたいところです。`);
   } else {
     out.push(`この月は収入の${pct(summary.balance / summary.incomeTotal)}%（${yen(summary.balance)}）が手元に残る計算です。`);
+  }
+
+  if (summary.investTotal > 0) {
+    out.push(
+      summary.hasIncome
+        ? `投資・積立に${yen(summary.investTotal)}（収入の${pct(summary.investTotal / summary.incomeTotal)}%）を回しています。支出の合計には含めていません。`
+        : `投資・積立に${yen(summary.investTotal)}を回しています。支出の合計には含めていません。`
+    );
   }
 
   const top = summary.categories.slice().sort((a, b) => b.total - a.total)[0];

@@ -52,10 +52,10 @@ const Store = (() => {
 
   /** 保存されている月のデータをすべて返す（キーは "m:2026-10" の形） */
   async function allMonths() {
-    if (!db) return [...memory.entries()].filter(([k]) => k.startsWith('m:')).map(([, v]) => v);
+    if (!db) return [...memory.entries()].filter(([k]) => k.startsWith('m:')).map(([, v]) => fillMonth(v));
     const keys = await tx('readonly', (s) => s.getAllKeys());
     const out = [];
-    for (const k of keys) if (String(k).startsWith('m:')) out.push(await get(k));
+    for (const k of keys) if (String(k).startsWith('m:')) out.push(fillMonth(await get(k)));
     return out;
   }
 
@@ -64,7 +64,7 @@ const Store = (() => {
     isPersistent: () => persistent,
     getSettings: async () => (await get('settings')) || {},
     setSettings: (v) => set('settings', v),
-    getMonth: (month) => get('m:' + month),
+    getMonth: async (month) => fillMonth(await get('m:' + month)),
     setMonth: (data) => set('m:' + data.month, data),
     allMonths,
   };

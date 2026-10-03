@@ -189,7 +189,7 @@ main { padding-bottom: 40px; }
 /* ---------- 収支の3つの数字 ---------- */
 
 .summary-card { padding: 24px; }
-.summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
 .summary-grid > .empty { grid-column: 1 / -1; }
 
 .tile { background: #fffaf5; border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }

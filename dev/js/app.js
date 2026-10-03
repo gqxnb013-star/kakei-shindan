@@ -219,6 +219,7 @@ function summaryTiles(s) {
   return `
     <div class="tile"><p class="tile-label">収入</p><p class="tile-value">${yen(s.incomeTotal)}</p></div>
     <div class="tile"><p class="tile-label">支出</p><p class="tile-value">${yen(s.expenseTotal)}</p></div>
+    ${s.investTotal > 0 ? `<div class="tile"><p class="tile-label">投資・積立</p><p class="tile-value">${yen(s.investTotal)}</p></div>` : ''}
     <div class="tile tile-main"><p class="tile-label">残るお金</p>${balance}</div>`;
 }
 
