@@ -69,6 +69,16 @@ const LineAuth = (() => {
     }
   }
 
+  /** 手元の id_token の期限が切れている・もうすぐ切れるか（読めなければ切れている扱い） */
+  function idTokenExpiresSoon() {
+    try {
+      const exp = liff.getDecodedIDToken().exp; // 秒
+      return !exp || exp * 1000 < Date.now() + 5 * 60 * 1000;
+    } catch (e) {
+      return true;
+    }
+  }
+
   /**
    * 本人確認（スクショ読み取り・FPに送るの前に呼ぶ）。
    * ログイン済みなら { idToken, friend } を返す。未ログインなら LINEログインの画面へ移り、
@@ -78,6 +88,9 @@ const LineAuth = (() => {
    */
   async function signIn() {
     if (!(await init())) throw new Error('LINEにつながりませんでした。通信の状態を確かめて、もう一度お試しください。');
+    // id_token は約1時間で切れるが、ログイン状態はもっと長く続く。
+    // 切れている（あと5分以内に切れる）ときは、ログインし直して新しい id_token をもらう
+    if (liff.isLoggedIn() && idTokenExpiresSoon()) liff.logout();
     if (!liff.isLoggedIn()) {
       liff.login({ redirectUri: location.href });
       return null;
