@@ -561,14 +561,28 @@ async function openReview(rawRows) {
     EXPENSE_CATEGORIES.forEach((c) => data.expense[c.key].items.forEach((it) => existing.add(duplicateKey(it.date, it.amount, it.memo))));
   }
 
-  const seen = new Set();
-  const rows = rawRows.map((r) => {
+  // 今回の中の二重：同じ画像の中で同じ明細が並ぶのは別々の利用（例：同じ日に同じ金額のETC2回）なので二重にしない。
+  // 前の画像にあった件数までを「重なって写った分」とみなす。画像の番号がない行は1行ずつ別の画像として扱う
+  const prevMax = new Map(); // 鍵 → それより前の画像での最大件数
+  const curCount = new Map(); // 鍵 → 今の画像での件数
+  let curImage = null;
+  const flushImage = () => {
+    curCount.forEach((n, k) => prevMax.set(k, Math.max(prevMax.get(k) || 0, n)));
+    curCount.clear();
+  };
+  const rows = rawRows.map((r, i) => {
     const date = /^\d{4}-\d{2}-\d{2}$/.test(r.date) ? r.date : '';
     const name = String(r.name || '').slice(0, 60);
     const amount = toYen(r.amount);
     const key = duplicateKey(date, amount, name);
-    const dup = existing.has(key) ? 'stored' : seen.has(key) ? 'batch' : null;
-    seen.add(key);
+    const image = Number(r.image) >= 1 ? Number(r.image) : `row${i}`;
+    if (image !== curImage) {
+      flushImage();
+      curImage = image;
+    }
+    const occ = (curCount.get(key) || 0) + 1;
+    curCount.set(key, occ);
+    const dup = existing.has(key) ? 'stored' : occ <= (prevMax.get(key) || 0) ? 'batch' : null;
     const { cat, by } = classifyMerchant(name, learned);
     // 二重の可能性があるものは、未分類でも「取り込むか」の判断を先にしてもらう
     const group = dup ? 'dup' : cat ? 'auto' : 'unclassified';
