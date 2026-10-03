@@ -1,14 +1,16 @@
 /**
  * 家計診断 — 画面の切り替え・入力・保存・バックアップ
  *
- * 画面は ①はじめに ②ホーム ③収入 ④支出 ⑤仕分けの確認 ⑥見える化 ⑦レポート（SPEC 1章の番号）。
+ * 画面は ①はじめに ②ホーム ③収入 ④支出（④-2 スクショから読み取る）⑤仕分けの確認 ⑥見える化 ⑦レポート（SPEC 1章の番号）。
  * 画面の切り替えは URL の # で行い、スマホの「戻る」でも前の画面に戻れるようにする。
  */
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
-const VIEWS = ['intro', 'home', 'income', 'expense', 'review', 'charts', 'report'];
+const VIEWS = ['intro', 'home', 'income', 'expense', 'scan', 'review', 'charts', 'report'];
+const SCAN_RESUME_KEY = 'kk-scan-resume'; // LINEログインから戻ったら読み取りの続きを出す印（sessionStorage）
+const SCAN_RESUME_MS = 10 * 60 * 1000;
 const BACKUP_REMIND_DAYS = 30;
 
 const state = {
@@ -16,6 +18,8 @@ const state = {
   data: null, // 選んでいる月のデータ
   settings: {}, // { agreedAt, lastBackupAt, fixedMap, merchantMap }
   review: null, // ⑤で確認中の明細（端末には保存しない。画面を閉じると消える）
+  scan: null, // 読み取り中の情報 { idToken, remaining }（端末には保存しない）
+  scanResume: false, // LINEログインから戻ってきた直後か
 };
 
 let saveTimer = null;
@@ -28,6 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   state.settings = await Store.getSettings();
   await loadMonth(state.month);
   bindEvents();
+  resumeScanAfterLogin();
   route();
   // LINEの中で開いたとき・LINEログインから戻ったときだけ LIFF を準備する（js/line.js）
   if (LineAuth.shouldInitOnLoad()) LineAuth.init();
@@ -48,7 +53,7 @@ async function route() {
   await flushSave();
   VIEWS.forEach((v) => ($('#view-' + v).hidden = v !== view));
   window.scrollTo(0, 0);
-  const render = { intro: renderIntro, home: renderHome, income: renderIncome, expense: renderExpense, review: renderReview, charts: renderCharts, report: renderReport }[view];
+  const render = { intro: renderIntro, home: renderHome, income: renderIncome, expense: renderExpense, scan: renderScan, review: renderReview, charts: renderCharts, report: renderReport }[view];
   await render();
 }
 
@@ -136,11 +141,18 @@ function bindEvents() {
     $('#btn-dev-review').addEventListener('click', () => openReview(devSampleRows()));
   }
 
-  // LINEの本人確認の動作確認用（3番）。プレビュー・試験用の写し（/dev/）・?linetest=1 のときだけ出す。読み取り（4番）ができたら外す
-  if (['localhost', '127.0.0.1'].includes(location.hostname) || location.pathname.includes('/dev/') || new URLSearchParams(location.search).has('linetest')) {
-    $('#line-test').hidden = false;
-    $('#btn-line-test').addEventListener('click', lineTest);
-  }
+  $('#btn-scan').addEventListener('click', () => {
+    // LINEの中では読み取らない（データがブラウザごとに別のため、家計簿は Safari・Chrome で使う。SPEC 6-5）
+    if (LineAuth.isLineBrowser()) {
+      if (confirm('スクショの読み取りは Safari・Chrome で使えます。開き直しますか？\n（入力した内容はブラウザごとに別々に保存されます）')) LineAuth.openExternal(externalUrl());
+      return;
+    }
+    go('scan');
+  });
+  $('#scan-agree').addEventListener('change', (e) => ($('#btn-scan-consent').disabled = !e.target.checked));
+  $('#btn-scan-consent').addEventListener('click', scanSignIn);
+  $('#scan-files').addEventListener('change', updateScanPicked);
+  $('#btn-scan-run').addEventListener('click', runScan);
 
   $('#btn-export').addEventListener('click', exportBackup);
   $('#import-file').addEventListener('change', importBackup);
@@ -391,6 +403,136 @@ async function copyFixedFromPrev() {
   scheduleSave();
   renderExpense();
   showToast(`固定費を${copied}カテゴリ写しました。金額が変わったものは直してください。`);
+}
+
+/* ---------- ④-2 スクショから読み取る ---------- */
+
+/** 同意（毎回）→ 画像を選ぶ → 読み取り中 の3つの段のうち、1つだけ出す */
+function showScanStep(step) {
+  $('#scan-consent').hidden = step !== 'consent';
+  $('#scan-pick').hidden = step !== 'pick';
+  $('#scan-busy').hidden = step !== 'busy';
+  $('#btn-scan-back').hidden = step === 'busy';
+}
+
+function showScanError(msg) {
+  $('#scan-error').textContent = msg || '';
+  $('#scan-error').hidden = !msg;
+}
+
+async function renderScan() {
+  showScanError('');
+  if (state.scanResume) {
+    // LINEログインから戻ってきた直後。同意は済んでいるので、画像を選ぶところから
+    state.scanResume = false;
+    await scanSignIn();
+    return;
+  }
+  // 同意は読み取りのたびに出す（2026-10-03 決定）
+  state.scan = null;
+  $('#scan-agree').checked = false;
+  $('#btn-scan-consent').disabled = true;
+  showScanStep('consent');
+}
+
+/** LINEで本人確認する。未ログインなら LINEログインへ移り、戻ってきたら resumeScanAfterLogin が続きを出す */
+async function scanSignIn() {
+  showScanError('');
+  const btn = $('#btn-scan-consent');
+  btn.disabled = true;
+  try {
+    try {
+      sessionStorage.setItem(SCAN_RESUME_KEY, String(Date.now()));
+    } catch (e) {}
+    const r = await LineAuth.signIn();
+    if (!r) return; // LINEログインの画面へ移った
+    try {
+      sessionStorage.removeItem(SCAN_RESUME_KEY);
+    } catch (e) {}
+    state.scan = { idToken: r.idToken, remaining: null };
+    $('#scan-files').value = '';
+    updateScanPicked();
+    showScanStep('pick');
+    $('#scan-quota').textContent = '今月の残り枚数を確認しています…';
+    state.scan.remaining = await ScanImport.quota(r.idToken);
+    $('#scan-quota').textContent = state.scan.remaining > 0 ? `今月はあと${state.scan.remaining}枚読み取れます。` : '今月の読み取り枚数の上限（30枚）に達しました。来月またお使いください。';
+    updateScanPicked();
+  } catch (err) {
+    try {
+      sessionStorage.removeItem(SCAN_RESUME_KEY);
+    } catch (e) {}
+    state.scan = null;
+    showScanStep('consent');
+    $('#scan-agree').checked = true;
+    btn.disabled = false;
+    showScanError(err.message || '本人確認ができませんでした。もう一度お試しください。');
+  }
+}
+
+/** 起動時：LINEログインから戻ってきたなら、読み取りの画面（画像を選ぶ段）を出す */
+function resumeScanAfterLogin() {
+  try {
+    const at = Number(sessionStorage.getItem(SCAN_RESUME_KEY) || 0);
+    if (!at) return;
+    sessionStorage.removeItem(SCAN_RESUME_KEY);
+    if (Date.now() - at > SCAN_RESUME_MS) return;
+    state.scanResume = true;
+    history.replaceState(null, '', location.pathname + location.search + '#scan');
+  } catch (e) {}
+}
+
+function updateScanPicked() {
+  const files = [...$('#scan-files').files];
+  const remaining = state.scan && typeof state.scan.remaining === 'number' ? state.scan.remaining : 0;
+  let msg = files.length ? `${files.length}枚を選びました。` : '';
+  let ok = files.length > 0;
+  if (files.length > ScanImport.MAX_PER_REQUEST) {
+    msg = `${files.length}枚選ばれています。1回${ScanImport.MAX_PER_REQUEST}枚までです。選び直してください。`;
+    ok = false;
+  } else if (files.length > remaining) {
+    msg = `${files.length}枚選ばれていますが、今月はあと${remaining}枚までです。`;
+    ok = false;
+  }
+  $('#scan-picked').textContent = msg;
+  $('#btn-scan-run').disabled = !ok;
+}
+
+async function runScan() {
+  const files = [...$('#scan-files').files];
+  if (!state.scan || !files.length) return;
+  showScanError('');
+  showScanStep('busy');
+  try {
+    const r = await ScanImport.read(state.scan.idToken, files);
+    state.scan.remaining = r.remaining;
+    if (!r.rows.length) {
+      showScanStep('pick');
+      $('#scan-files').value = '';
+      updateScanPicked();
+      $('#scan-quota').textContent = `今月はあと${r.remaining}枚読み取れます。`;
+      showScanError(r.income ? `支出の明細が見つかりませんでした（入金${r.income}件は除きました）。` : '明細が見つかりませんでした。明細の一覧が写ったスクショでお試しください。');
+      return;
+    }
+    await openReview(r.rows);
+    showToast(`${r.rows.length}件を読み取りました。` + (r.income ? `入金${r.income}件は除きました（収入は「収入を入れる」で月額を入れてください）。` : '') + `今月はあと${r.remaining}枚読み取れます。`, 7000);
+  } catch (err) {
+    if (err.code === 'token') {
+      // ログインの期限切れ。同意からやり直す
+      state.scan = null;
+      showScanStep('consent');
+      $('#scan-agree').checked = true;
+      $('#btn-scan-consent').disabled = false;
+    } else {
+      showScanStep('pick');
+      if (typeof err.remaining === 'number') {
+        state.scan.remaining = err.remaining;
+        $('#scan-quota').textContent = `今月はあと${err.remaining}枚読み取れます。`;
+        updateScanPicked();
+      }
+    }
+    const msg = err.code === 'limit' && err.remaining > 0 ? `今月はあと${err.remaining}枚までです。枚数を減らして選び直してください。` : err.message;
+    showScanError(msg || '読み取りできませんでした。もう一度お試しください。');
+  }
 }
 
 /* ---------- ⑤仕分けの確認 ---------- */
@@ -756,22 +898,6 @@ async function importBackup(e) {
 }
 
 /* ---------- LINEの中のブラウザ ---------- */
-
-/** 本人確認の動作確認（3番の確認用）。結果だけを画面に出し、IDやトークンは出さない */
-async function lineTest() {
-  const out = $('#line-test-result');
-  out.textContent = '確認中…';
-  try {
-    const r = await LineAuth.signIn();
-    if (!r) return; // LINEログインの画面へ移った
-    const verified = await LineAuth.verify(r.idToken);
-    const v = verified === null ? 'サーバー未設定' : verified ? 'OK' : 'NG';
-    const f = r.friend === null ? '不明' : r.friend ? 'はい' : 'いいえ';
-    out.textContent = `ログイン：OK／サーバーでの確認：${v}／公式LINEの友だち：${f}／LIFFの中：${LineAuth.isInClient() ? 'はい' : 'いいえ'}`;
-  } catch (err) {
-    out.textContent = err.message || '確認できませんでした。';
-  }
-}
 
 /** LINEで開いたときに外部ブラウザで開き直すためのURL（LINEの openExternalBrowser 指定を付ける） */
 function externalUrl() {

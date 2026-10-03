@@ -11,8 +11,6 @@
 const LineAuth = (() => {
   const LIFF_ID = '2011842662-0lIvMV7g';
   const SDK_URL = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
-  // id_token を確かめる GAS の URL（gas/Code.gs を公開したら入れる。空の間はサーバーで確かめない）
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbyihDd1vNwkKw0RkBKI_NQ4KsPKYg9brAOwUFyPEbfSsN9VCYImR-p3lAnGNfRCZrWQrQ/exec';
 
   let ready = null;
 
@@ -75,7 +73,8 @@ const LineAuth = (() => {
    * 本人確認（スクショ読み取り・FPに送るの前に呼ぶ）。
    * ログイン済みなら { idToken, friend } を返す。未ログインなら LINEログインの画面へ移り、
    * 戻ってきたときに今の画面に戻る（このときは null を返す。呼んだ側は何もしない）。
-   * friend は公式LINE「DAIFP 宮崎大輔」の友だちなら true（分からなければ null）
+   * friend は公式LINE「DAIFP 宮崎大輔」の友だちなら true（分からなければ null）。
+   * id_token の確かめは GAS が読み取り・FP送信のたびに行う
    */
   async function signIn() {
     if (!(await init())) throw new Error('LINEにつながりませんでした。通信の状態を確かめて、もう一度お試しください。');
@@ -94,21 +93,5 @@ const LineAuth = (() => {
     return { idToken, friend };
   }
 
-  /**
-   * GAS で id_token を確かめる。確かめられたら true。
-   * 読み取り（4番）・FP送信（6番）は、この確認を GAS の中で毎回行う（ここは動作確認用）
-   */
-  async function verify(idToken) {
-    if (!GAS_URL) return null;
-    // text/plain で送ると、GAS への送信で事前確認（CORS のプリフライト）が発生しない
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'whoami', idToken }),
-    });
-    const json = await res.json();
-    return !!json.ok;
-  }
-
-  return { isLineBrowser, shouldInitOnLoad, init, isInClient, openExternal, signIn, verify };
+  return { isLineBrowser, shouldInitOnLoad, init, isInClient, openExternal, signIn };
 })();

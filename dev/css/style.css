@@ -561,3 +561,15 @@ input:focus { outline: 2px solid var(--primary-light); outline-offset: 1px; bord
 /* ロゴ：D-AI-FP の後ろに「家計診断」を小さく添える */
 .logo { display: inline-flex; align-items: baseline; gap: 8px; }
 .logo-text { font-size: 14px; font-weight: 600; letter-spacing: 0.12em; color: var(--ink-soft); }
+
+/* ---------- ④-2 スクショから読み取る ---------- */
+.scan-entry { margin: 4px 0 16px; padding: 14px; border: 1px dashed var(--primary-light); border-radius: 10px; background: var(--primary-tint); text-align: center; }
+.scan-entry .btn { width: 100%; max-width: 360px; }
+.scan-entry .footnote { margin: 8px 0 0; text-align: left; }
+.scan-quota { font-weight: 700; color: var(--primary-dark); margin: 0 0 12px; }
+.scan-file { display: block; max-width: 360px; margin: 0 auto; text-align: center; }
+.scan-busy { text-align: center; padding: 24px 0; }
+.scan-busy p { margin: 12px 0 0; font-size: 14.5px; }
+.spinner { width: 40px; height: 40px; margin: 0 auto; border: 4px solid var(--line); border-top-color: var(--primary); border-radius: 50%; animation: kk-spin 0.9s linear infinite; }
+@keyframes kk-spin { to { transform: rotate(360deg); } }
+.scan-error { margin: 14px 0 0; padding: 10px 12px; border-radius: 8px; background: #fdecea; color: var(--warn); font-size: 14px; line-height: 1.6; }

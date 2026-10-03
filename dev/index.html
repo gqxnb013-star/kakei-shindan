@@ -113,21 +113,71 @@
         <div class="card">
           <h2><span id="expense-month"></span>の支出</h2>
           <p class="note">カテゴリごとに月額で入れるか、「1件ずつ」を開いて明細を足していきます。<br>カテゴリの合計＝<strong>月額（明細以外の分）＋明細の合計</strong>です。同じ支出を両方に入れないようにご注意ください。</p>
+          <div class="scan-entry">
+            <button type="button" class="btn btn-primary" id="btn-scan">明細のスクショから読み取る</button>
+            <p class="footnote">カード・銀行・決済アプリの利用明細のスクショから、日付・店名・金額を読み取って明細に入れます（LINEでの本人確認が必要です）。</p>
+          </div>
           <div id="expense-list"></div>
           <div class="field-total">支出の合計 <strong id="expense-total">0円</strong></div>
           <div class="sub-actions">
             <button type="button" class="btn btn-ghost btn-sm" id="btn-copy-fixed">先月の固定費をコピー</button>
-            <!-- 開発用：プレビュー（localhost）でだけ出す。スクショ読み取りができるまでの確認用 -->
+            <!-- 開発用：プレビュー（localhost）でだけ出す。架空の明細で⑤を確かめる -->
             <button type="button" class="btn btn-ghost btn-sm" id="btn-dev-review" hidden>架空の明細で⑤を確認（開発用）</button>
-            <!-- 開発用：LINEの本人確認の動作確認（プレビューか ?linetest=1 のときだけ出す） -->
-            <div id="line-test" hidden>
-              <button type="button" class="btn btn-ghost btn-sm" id="btn-line-test">LINEの本人確認を試す（開発用）</button>
-              <p class="note" id="line-test-result"></p>
-            </div>
           </div>
           <div class="step-nav">
             <button type="button" class="btn btn-ghost" data-go="home">ホームへ</button>
             <button type="button" class="btn btn-primary" data-go="charts">グラフで見る</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ④-2 スクショから読み取る（同意 → LINEで本人確認 → 画像を選ぶ → 読み取り → ⑤） -->
+    <section id="view-scan" class="view" hidden>
+      <div class="wrap">
+        <div class="card">
+          <h2>スクショから読み取る</h2>
+
+          <!-- 同意（読み取りのたびに出す） -->
+          <div id="scan-consent">
+            <h3 class="sub-head">読み取りの前にご確認ください</h3>
+            <ul class="plain-list">
+              <li>画像の読み取りには、外部のAIサービス（<strong>Anthropic社のClaude</strong>）を使います。</li>
+              <li>送った画像と読み取った結果は、読み取りが終わると消え、サーバーには残りません。AIの学習にも使われません。</li>
+              <li>読み取った結果には、カード番号・口座番号・氏名を含めないようにしています。画像そのものはAIに送られるため、気になる部分はスクショを切り取ってから選んでください。</li>
+              <li>本人確認のため、LINEでのログインが必要です。読み取りは<strong>1回5枚・1か月30枚まで</strong>です。</li>
+              <li>AIの読み取りには誤りがあることがあります。取り込む前に、次の画面で日付・店名・金額をご確認ください。</li>
+            </ul>
+            <label class="agree">
+              <input type="checkbox" id="scan-agree">
+              <span>上の内容に同意します</span>
+            </label>
+            <div class="center">
+              <button type="button" class="btn btn-primary btn-lg" id="btn-scan-consent" disabled>LINEで本人確認して進む</button>
+            </div>
+          </div>
+
+          <!-- 画像を選ぶ -->
+          <div id="scan-pick" hidden>
+            <p class="note">明細が写ったスクショを選んでください（1回<strong>5枚</strong>まで）。</p>
+            <p class="scan-quota" id="scan-quota"></p>
+            <label class="btn btn-ghost file-btn scan-file">画像を選ぶ<input type="file" id="scan-files" accept="image/*" multiple></label>
+            <p class="footnote" id="scan-picked"></p>
+            <div class="center">
+              <button type="button" class="btn btn-primary btn-lg" id="btn-scan-run" disabled>読み取る</button>
+            </div>
+          </div>
+
+          <!-- 読み取り中 -->
+          <div id="scan-busy" class="scan-busy" hidden>
+            <div class="spinner" aria-hidden="true"></div>
+            <p>読み取り中です…（30秒ほどかかることがあります。画面を閉じずにお待ちください）</p>
+          </div>
+
+          <p class="scan-error" id="scan-error" role="alert" hidden></p>
+
+          <div class="step-nav">
+            <button type="button" class="btn btn-ghost" data-go="expense" id="btn-scan-back">支出に戻る</button>
           </div>
         </div>
       </div>
@@ -199,6 +249,7 @@
   <script src="js/chart.js"></script>
   <script src="js/store.js"></script>
   <script src="js/line.js"></script>
+  <script src="js/import.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
